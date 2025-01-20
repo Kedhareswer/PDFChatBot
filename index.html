@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart PDF Chatbot</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #2962ff;
+            --secondary-color: #0039cb;
+            --background-color: #f5f5f5;
+            --chat-bg: #ffffff;
+            --text-color: #333333;
+            --border-color: #e0e0e0;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: var(--background-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: var(--chat-bg);
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: var(--primary-color);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        .upload-section {
+            padding: 30px;
+            border-bottom: 1px solid var(--border-color);
+            text-align: center;
+        }
+
+        .drop-zone {
+            border: 2px dashed var(--primary-color);
+            border-radius: 12px;
+            padding: 40px 20px;
+            margin: 20px 0;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #f8f9fa;
+        }
+
+        .drop-zone:hover {
+            background: #e3f2fd;
+            border-color: var(--secondary-color);
+        }
+
+        .drop-zone.dragover {
+            background: #bbdefb;
+            border-color: var(--secondary-color);
+        }
+
+        .main-content {
+            display: flex;
+            padding: 20px;
+            gap: 20px;
+            height: calc(100vh - 300px);
+            min-height: 500px;
+        }
+
+        .pdf-viewer {
+            flex: 1;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            overflow: hidden;
+            background: white;
+            padding: 10px;
+        }
+
+        .chat-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .message {
+            margin-bottom: 20px;
+            max-width: 80%;
+            padding: 12px 16px;
+            border-radius: 12px;
+            position: relative;
+        }
+
+        .user-message {
+            background: var(--primary-color);
+            color: white;
+            margin-left: auto;
+            border-bottom-right-radius: 4px;
+        }
+
+        .bot-message {
+            background: #f3f3f3;
+            border-bottom-left-radius: 4px;
+        }
+
+        .input-area {
+            padding: 20px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            gap: 10px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 12px 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            outline: none;
+            font-size: 14px;
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(41, 98, 255, 0.1);
+        }
+
+        button {
+            padding: 12px 24px;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background 0.3s ease;
+        }
+
+        button:hover {
+            background: var(--secondary-color);
+        }
+
+        .status {
+            margin-top: 10px;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .loading:after {
+            content: '';
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .summary-section {
+            margin: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        .summary-section h3 {
+            margin-bottom: 10px;
+            color: var(--primary-color);
+        }
+
+        .keyword-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .keyword-chip {
+            background: #e3f2fd;
+            padding: 4px 12px;
+            border-radius: 16px;
+            font-size: 12px;
+            color: var(--primary-color);
+        }
+
+        /* Scrollbar Styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Smart PDF Chatbot</h1>
+            <p>Upload your PDF and chat about its contents intelligently</p>
+        </div>
+
+        <div class="upload-section">
+            <div class="drop-zone" id="dropZone">
+                <p>Drag & Drop your PDF here or click to upload</p>
+                <input type="file" id="fileInput" accept=".pdf" style="display: none;">
+            </div>
+            <div class="status" id="uploadStatus"></div>
+            <div class="loading" id="loading"></div>
+        </div>
+
+        <div class="summary-section" id="summarySection" style="display: none;">
+            <h3>Document Overview</h3>
+            <p id="summary"></p>
+            <div class="keyword-chips" id="keywordChips"></div>
+        </div>
+
+        <div class="main-content" id="mainContent" style="display: none;">
+            <div class="pdf-viewer" id="pdfViewer"></div>
+            <div class="chat-section">
+                <div class="chat-messages" id="chatMessages"></div>
+                <div class="input-area">
+                    <input type="text" id="questionInput" placeholder="Ask me anything about the document...">
+                    <button onclick="handleQuestion()">Ask</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js';
+
+        class SmartChatbot {
+            constructor(pdfText) {
+                this.pdfText = pdfText;
+                this.context = this.processText(pdfText);
+                this.conversationHistory = [];
+                this.keywords = new Set();
+                this.initializeKeywords();
+            }
+
+            processText(text) {
+                return {
+                    sentences: text.split(/[.!?]+/).map(s => s.trim()).filter(s => s.length > 0),
+                    paragraphs: text.split(/\n\n+/).map(p => p.trim()).filter(p => p.length > 0)
+                };
+            }
+
+            initializeKeywords() {
+                const words = this.pdfText.toLowerCase().split(/\W+/);
+                const wordFrequency = {};
+                
+                words.forEach(word => {
+                    if (word.length > 3 && !this.isStopWord(word)) {
+                        wordFrequency[word] = (wordFrequency[word] || 0) + 1;
+                    }
+                });
+
+                // Get top keywords
+                Object.entries(wordFrequency)
+                    .sort(([,a], [,b]) => b - a)
+                    .slice(0, 10)
+                    .forEach(([word]) => this.keywords.add(word));
+            }
+
+            isStopWord(word) {
+                const stopWords = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'is', 'are', 'was', 'were', 'will', 'be']);
+                return stopWords.has(word);
+            }
+
+            findRelevantContext(question) {
+                const keywords = this.extractKeywords(question);
+                let relevantSentences = [];
+                
+                this.context.sentences.forEach(sentence => {
+                    const score = keywords.reduce((acc, keyword) => {
+                        return acc + (sentence.toLowerCase().includes(keyword.toLowerCase()) ? 1 : 0);
+                    }, 0);
+                    
+                    if (score > 0) {
+                        relevantSentences.push({ sentence, score });
+                    }
+                });
+
+                relevantSentences.sort((a, b) => b.score - a.score);
+                return relevantSentences;
+            }
+
+            extractKeywords(text) {
+                return text.toLowerCase()
+                    .split(/\W+/)
+                    .filter(word => word.length > 2 && !this.isStopWord(word));
+            }
+
+            generateAnswer(question) {
+                this.conversationHistory.push({ role: 'user', content: question });
+
+                if (question.toLowerCase().includes('key points') || 
+                    question.toLowerCase().includes('main points') ||
+                    question.toLowerCase().includes('summary')) {
+                    return this.generateKeyPoints();
+                }
+
+                const relevantContext = this.findRelevantContext(question);
+                
+                if (relevantContext.length === 0) {
+                    return "I apologize, but I couldn't find specific information about that in the document. Could you rephrase your question or ask about a different aspect?";
+                }
+
+                let answer = this.constructAnswer(question, relevantContext);
+                this.conversationHistory.push({ role: 'assistant', content: answer });
+                
+                return answer;
+            }
+
+            generateKeyPoints() {
+                const importantSentences = this.context.sentences.filter(sentence => {
+                    const lowercaseSentence = sentence.toLowerCase();
+                    return Array.from(this.keywords).some(keyword => 
+                        lowercaseSentence.includes(keyword)
+                    );
+                });
+
+                const keyPoints = importantSentences.slice(0, 5);
+
+                return "Here are the key points from the document:\n\n" + 
+                       keyPoints.map((point, index) => `${index + 1}. ${point}`).join('\n\n');
+            }
+
+            constructAnswer(question, relevantContext) {
+                if (relevantContext.length === 0) return null;
+
+                const topSentences = relevantContext.slice(0, 3).map(rc => rc.sentence);
+                
+                let answer = "Based on the document, ";
+                
+                if (question.toLowerCase().startsWith('what')) {
+                    answer = "The document explains that ";
+                } else if (question.toLowerCase().startsWith('how')) {
+                    answer = "According to the document, the process involves ";
+                } else if (question.toLowerCase().startsWith('why')) {
+                    answer = "The document indicates that ";
+                }
+
+                answer += topSentences.join(' ');
+
+                if (relevantContext.length === 1) {
+                    answer += "\n\nNote: This is based on the most relevant information I could find. Feel free to ask for more specific details.";
+                }
+
+                return answer;
+            }
+
+            getKeywords() {
+                return Array.from(this.keywords);
+            }
+        }
+
+        let chatbot;
+        let currentPdf = null;
+
+        // Event Listeners
+        document.addEventListener('DOMContentLoaded', () => {
+            const dropZone = document.getElementById('dropZone');
+            const fileInput = document.getElementById('fileInput');
+            
+            dropZone.onclick = () => fileInput.click();
+            
+            dropZone.ondragover = (e) => {
+                e.preventDefault();
+                dropZone.classList.add('dragover');
+            };
+            
+            dropZone.ondragleave = () => {
+                dropZone.classList.remove('dragover');
+            };
+            
+            dropZone.ondrop = (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('dragover');
+                handleFileUpload(e.dataTransfer.files[0]);
+            };
+            
+            fileInput.onchange = () => handleFileUpload(fileInput.files[0]);
+            
+            document.getElementById('questionInput').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') handleQuestion();
+            });
+        });
+
+        async function handleFileUpload(file) {
+            if (!file || file.type !== 'application/pdf') {
+                showStatus('Please upload a PDF file.', 'error');
+                return;
+            }
+
+            showStatus('Processing PDF...', 'loading');
+            
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+                currentPdf = pdf;
+
+                let pdfText = '';
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const textContent = await page.getTextContent();
+                    pdfText += textContent.items.map(item => item.str).join(' ');
+                }
+
+                chatbot = new SmartChatbot(pdfText);
+                
+                // Display first page
+                displayPdfPage(1);
+                
+                // Show keywords
+                displayKeywords(chatbot.getKeywords());
+                
+                // Show summary
+                const summary = chatbot.generateKeyPoints();
+                document.getElementById('summary').textContent = summary;
+                
+                // Show UI elements
+                document.getElementById('summarySection').style.display = 'block';
+                document.getElementById('mainContent').style.display = 'flex';
+                
+                showStatus('PDF processed successfully!', 'success');
+                
+                // Add welcome message
+                addMessage('bot', 'I\'ve analyzed your document. Feel free to ask any questions about its contents!');
+                
+            } catch (error) {
+                console.error(error);
+                showStatus('Error processing PDF. Please try again.', 'error');
+            }
+        }
+
+        async function displayPdfPage(pageNumber) {
+            const page = await currentPdf.getPage(pageNumber);
+            const viewport = page.getViewport({ scale: 1.5 });
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+            
+            await page.render({
+                canvasContext: context,
+                viewport: viewport
+            }).promise;
+            
+            const pdfViewer = document.getElementById('pdfViewer');
+            pdfViewer.innerHTML = '';
+            pdfViewer.appendChild(canvas);
+        }
+
+        function displayKeywords(keywords) {
+            const keywordChips = document.getElementById('keywordChips');
+            keywordChips.innerHTML = keywords
+                .map(keyword => `<span class="keyword-chip">${keyword}</span>`)
+                .join('');
+        }
+
+        function handleQuestion() {
+            const questionInput = document.getElementById('questionInput');
+            const question = questionInput.value.trim();
+            
+            if (!question) return;
+            
+            addMessage('user', question);
+            questionInput.value = '';
+            
+            const answer = chatbot.generateAnswer(question);
+            addMessage('bot', answer);
+        }
+
+        function addMessage(sender, text) {
+            const messagesDiv = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${sender}-message`;
+            messageDiv.textContent = text;
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function showStatus(message, type) {
+            const status = document.getElementById('uploadStatus');
+            const loading = document.getElementById('loading');
+            
+            status.textContent = message;
+            loading.style.display = type === 'loading' ? 'block' : 'none';
+            
+            status.className = 'status ' + type;
+        }
+    </script>
+</body>
+</html>
